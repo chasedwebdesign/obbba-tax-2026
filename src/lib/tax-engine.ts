@@ -1,50 +1,26 @@
-// src/lib/tax-engine.ts
+import { STATE_TAX_RATES } from './data';
 
-// 1. Define the "Data Package" shape
-export type TaxInputs = {
-  income: number;
-  tips: number;
-  overtime: number;
-  state: string;
-  filingStatus: 'single' | 'joint';
-};
+// ... (TaxInputs and TaxResult types stay the same)
 
-// 2. Define the "Result Package" shape
-export type TaxResult = {
-  taxWithObbba: number;
-  taxWithoutObbba: number;
-  savings: number;
-  deductibleTips: number;     // The page needs this specifically
-  deductibleOvertime: number; // The page needs this specifically
-  netPay: number;
-  effectiveRate: number;
-};
-
-// 3. The Calculator Logic
 export const calculateObbbaTax = (inputs: TaxInputs): TaxResult => {
-  const { income, tips, overtime, filingStatus } = inputs;
+  const { income, tips, overtime, filingStatus, state } = inputs; // Added state
 
-  // Constants (2026 Projected)
+  // Constants
   const STANDARD_DEDUCTION = filingStatus === 'single' ? 14600 : 29200;
-
-  // A. OBBBA Logic: Calculate the specific deductions
-  // If tips are undefined (safety check), default to 0
+  
+  // 1. OBBBA Deductions
   const safeTips = tips || 0;
   const safeOvertime = overtime || 0;
   
   const deductibleTips = Math.min(safeTips, 25000);
   const deductibleOvertime = Math.min(safeOvertime, 12500);
 
-  // B. Calculate Taxable Income
+  // 2. Taxable Income
   const grossIncome = income + safeTips + safeOvertime;
-  
-  // Scenario 1: New OBBBA Method
   const taxableIncomeObbba = Math.max(0, grossIncome - STANDARD_DEDUCTION - deductibleTips - deductibleOvertime);
-  
-  // Scenario 2: Old Legacy Method
   const taxableIncomeLegacy = Math.max(0, grossIncome - STANDARD_DEDUCTION);
 
-  // C. Federal Tax Function (Simplified 2026 Brackets)
+  // 3. Federal Tax (Simplified 2026 Brackets)
   const calculateFederalTax = (amount: number): number => {
     if (amount <= 11600) return amount * 0.10;
     if (amount <= 47150) return 1160 + (amount - 11600) * 0.12;
@@ -52,17 +28,24 @@ export const calculateObbbaTax = (inputs: TaxInputs): TaxResult => {
     return 17168.5 + (amount - 100525) * 0.24;
   };
 
-  const taxWithObbba = calculateFederalTax(taxableIncomeObbba);
-  const taxWithoutObbba = calculateFederalTax(taxableIncomeLegacy);
+  const federalTax = calculateFederalTax(taxableIncomeObbba);
+  const federalTaxLegacy = calculateFederalTax(taxableIncomeLegacy);
 
-  // D. Return the object exactly as the Page expects it
+  // 4. State Tax Calculation (NEW!)
+  // We look up the state rate, defaulting to 5% if not found
+  const stateRate = STATE_TAX_RATES[state] !== undefined ? STATE_TAX_RATES[state] : 0.05;
+  const stateTax = taxableIncomeObbba * stateRate;
+
+  const totalTax = federalTax + stateTax;
+  const totalTaxLegacy = federalTaxLegacy + (taxableIncomeLegacy * stateRate);
+
   return {
-    taxWithObbba,
-    taxWithoutObbba,
-    savings: taxWithoutObbba - taxWithObbba,
-    deductibleTips,      // This was likely missing or undefined before
-    deductibleOvertime,  // This was likely missing or undefined before
-    netPay: grossIncome - taxWithObbba,
-    effectiveRate: (taxWithObbba / grossIncome) || 0
+    taxWithObbba: totalTax,
+    taxWithoutObbba: totalTaxLegacy,
+    savings: totalTaxLegacy - totalTax,
+    deductibleTips,
+    deductibleOvertime,
+    netPay: grossIncome - totalTax,
+    effectiveRate: (totalTax / grossIncome) || 0
   };
 };

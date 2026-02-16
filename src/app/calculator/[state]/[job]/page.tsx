@@ -1,10 +1,10 @@
-// src/app/calculator/[state]/[job]/page.tsx
-import { STATES, JOBS, formatText } from '@/lib/data';
-import { calculateObbbaTax } from '@/lib/tax-engine';
+import { STATES, JOBS, formatText, getJobProfile, STATE_TAX_RATES } from '@/lib/data';
 import { Metadata } from 'next';
 import Link from 'next/link';
+import BuyButton from '@/components/BuyButton';
+import TaxCalculator from '@/components/TaxCalculator';
 
-// 1. GENERATE STATIC PARAMS (Stays the same)
+// 1. GENERATE STATIC PARAMS
 export async function generateStaticParams() {
   const params = [];
   for (const state of STATES) {
@@ -15,13 +15,13 @@ export async function generateStaticParams() {
   return params;
 }
 
-// 2. DYNAMIC SEO METADATA (Updated for Next.js 15+)
+// 2. DYNAMIC SEO METADATA
 type Props = {
   params: Promise<{ state: string; job: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const resolvedParams = await params; // <--- This await is the fix
+  const resolvedParams = await params;
   const stateName = formatText(resolvedParams.state);
   const jobName = formatText(resolvedParams.job);
   
@@ -31,73 +31,69 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-// 3. THE PAGE UI (Updated to Async Component)
+// 3. THE PAGE UI
 export default async function Page({ params }: Props) {
-  const resolvedParams = await params; // <--- This await is the fix
+  const resolvedParams = await params;
   const stateName = formatText(resolvedParams.state);
   const jobName = formatText(resolvedParams.job);
 
-  // Default "Example" Calculation
-  const exampleStats = calculateObbbaTax({
-    income: 50000,
-    tips: 15000,
-    overtime: 5000,
-    state: resolvedParams.state,
-    filingStatus: 'single'
-  });
+  // --- STEP A: GET REAL DATA ---
+  // Pull the specific profile for this job (Income/Tips/Overtime)
+  const profile = getJobProfile(resolvedParams.job);
+  
+  // Pull the specific tax rate for this state (default to 5% if missing)
+  const stateRate = STATE_TAX_RATES[resolvedParams.state] !== undefined 
+    ? STATE_TAX_RATES[resolvedParams.state] 
+    : 0.05;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8 font-sans">
+    <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
       <div className="max-w-3xl mx-auto">
         
         {/* Breadcrumb Navigation */}
-        <div className="text-sm text-slate-500 mb-4">
-          <Link href="/" className="hover:underline">Home</Link> &gt; {stateName} &gt; {jobName}
+        <div className="text-sm text-slate-400 mb-6 font-medium">
+          <Link href="/" className="hover:text-emerald-500 transition">Home</Link> 
+          <span className="mx-2">/</span> 
+          {stateName} 
+          <span className="mx-2">/</span> 
+          {jobName}
         </div>
 
         {/* Dynamic Header */}
-        <h1 className="text-4xl font-extrabold text-slate-900 mb-4">
-          The 2026 Tax Calculator for <span className="text-blue-600">{jobName}s</span> in {stateName}
+        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 leading-tight">
+          The 2026 Tax Calculator for <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-blue-500">{jobName}s</span> in {stateName}
         </h1>
         
-        <p className="text-lg text-slate-700 mb-8">
-          If you work as a <strong>{jobName}</strong> in <strong>{stateName}</strong>, the new "No Tax on Tips" and "No Tax on Overtime" laws (OBBBA) could save you thousands.
+        <p className="text-lg text-slate-600 mb-10 leading-relaxed">
+          If you work as a <strong>{jobName}</strong> in <strong>{stateName}</strong>, the new 2026 "No Tax on Tips" and "No Tax on Overtime" laws (OBBBA) significantly change your effective tax rate.
         </p>
 
-        {/* The "Hero" Savings Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-8 mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div>
-              <h3 className="text-xl font-semibold text-slate-700">Estimated 2026 Savings</h3>
-              <p className="text-sm text-slate-500">Based on avg {jobName} income</p>
-            </div>
-            <div className="text-5xl font-bold text-green-600 mt-4 md:mt-0">
-              ${exampleStats.savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Tax-Free Tips</p>
-              <p className="text-lg font-bold text-slate-900">${exampleStats.deductibleTips.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Tax-Free Overtime</p>
-              <p className="text-lg font-bold text-slate-900">${exampleStats.deductibleOvertime.toLocaleString()}</p>
-            </div>
-          </div>
+        {/* DYNAMIC SCENARIO EXPLANATION */}
+        {/* This proves to the user we know who they are */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 text-sm text-blue-800 shadow-sm">
+           <div className="flex items-start gap-3">
+             <div className="mt-1 min-w-[4px] min-h-[4px] rounded-full bg-blue-500" />
+             <p>
+               <strong>Your Specialized Scenario:</strong> We initialized this calculation for a typical {jobName} in {stateName} earning 
+               <span className="font-bold"> ${profile.base.toLocaleString()} base</span>, 
+               <span className="font-bold"> ${profile.tips.toLocaleString()} in tips</span>, and 
+               <span className="font-bold"> ${profile.overtime.toLocaleString()} in overtime</span>.
+             </p>
+           </div>
         </div>
 
-        {/* Call to Action */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-bold text-blue-900 mb-2">Want your exact number?</h3>
-          <p className="text-blue-700 mb-4">
-            This is an estimate. Enter your exact pay stubs to see precisely what you will owe in April 2026.
-          </p>
-          <button className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition w-full md:w-auto">
-            Calculate My Specific Scenario
-          </button>
-        </div>
+        {/* --- THE INTERACTIVE CALCULATOR --- */}
+        {/* We pass the data into the client component so they can edit it */}
+        <TaxCalculator 
+          initialBase={profile.base}
+          initialTips={profile.tips}
+          initialOvertime={profile.overtime}
+          stateName={stateName}
+          stateRate={stateRate}
+        />
+
+        {/* --- THE MONEY BUTTON --- */}
+        <BuyButton />
 
       </div>
     </main>
