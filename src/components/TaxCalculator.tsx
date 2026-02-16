@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
-import { Edit2, Lock, Info, ChevronUp, ChevronDown, Zap, X, TrendingUp, DollarSign } from 'lucide-react';
+import { Edit2, Lock, Info, ChevronUp, ChevronDown, Zap, X } from 'lucide-react';
 import BuyButton from './BuyButton';
 
 // --- MATH ENGINE ---
@@ -12,8 +12,7 @@ const calculate = (base: number, tips: number, overtime: number, stateRate: numb
   const standardDeduction = 14600;
   
   // 1. Snapshot Calc
-  // AGGRESSIVE LOGIC: Without the PDF (Audit Log), we assume 90% of tips are disallowed/misclassified.
-  // This reflects the high risk of IRS audit failure without proof.
+  // Without the PDF (Audit Log), we assume 90% of tips are disallowed/misclassified (Risk Factor)
   const misclassifiedTips = tips * 0.90; 
   
   // Taxable Incomes
@@ -49,18 +48,18 @@ const calculate = (base: number, tips: number, overtime: number, stateRate: numb
     
     // Adjusted Annual Incomes
     const adjBase = base * raiseFactor;
-    const adjTips = tips * raiseFactor; // Tips grow too
+    const adjTips = tips * raiseFactor; 
     const adjOvertime = overtime * raiseFactor;
     
-    // Recalculate Taxes for this future year
-    // Note: We keep brackets static for simplicity/conservative estimates
+    // Gross Income
     const gross = adjBase + adjTips + adjOvertime;
     
-    // Legacy Tax
+    // --- RE-RUN TAX LOGIC FOR FUTURE YEARS ---
+    // Legacy Tax (No deductions)
     const tLeg = fed(Math.max(0, gross - standardDeduction)) + (Math.max(0, gross - standardDeduction) * stateRate);
     
     // Standard Tax (90% Risk)
-    const riskTips = Math.min(adjTips * 0.10, 25000); // Only getting 10% benefit
+    const riskTips = Math.min(adjTips * 0.10, 25000); 
     const tStd = fed(Math.max(0, gross - standardDeduction - riskTips)) + (Math.max(0, gross - standardDeduction - riskTips) * stateRate);
     
     // Optimized Tax (100% Benefit)
@@ -90,21 +89,27 @@ const calculate = (base: number, tips: number, overtime: number, stateRate: numb
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    // FIX: Explicitly find the correct data key from the payload array
+    // payload order matches the Area render order: [Legacy, Standard, Optimized]
+    const legacyData = payload.find((p: any) => p.dataKey === 'legacy');
+    const standardData = payload.find((p: any) => p.dataKey === 'standard');
+    const optimizedData = payload.find((p: any) => p.dataKey === 'optimized');
+
     return (
       <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl text-xs z-50">
         <p className="font-bold text-slate-400 uppercase tracking-wider mb-2">Year {label} Take-Home Pay</p>
         <div className="space-y-2">
           <p className="text-white font-bold text-sm flex justify-between gap-6 items-center border-l-2 border-indigo-500 pl-2">
             <span>With Strategy:</span>
-            <span className="text-indigo-400">${payload[0].value.toLocaleString()}</span>
+            <span className="text-indigo-400">${optimizedData?.value.toLocaleString()}</span>
           </p>
           <p className="text-slate-400 font-medium text-xs flex justify-between gap-6 items-center border-l-2 border-amber-500 pl-2">
             <span>Standard:</span>
-            <span>${payload[1].value.toLocaleString()}</span>
+            <span>${standardData?.value.toLocaleString()}</span>
           </p>
           <p className="text-slate-500 text-xs flex justify-between gap-6 items-center border-l-2 border-slate-500 pl-2">
             <span>Legacy Code:</span>
-            <span>${payload[2].value.toLocaleString()}</span>
+            <span>${legacyData?.value.toLocaleString()}</span>
           </p>
         </div>
       </div>
@@ -131,8 +136,7 @@ export default function TaxCalculator({
 
   // Calculate Domain for Y-Axis (Auto-Zoom)
   const minVal = Math.min(...stats.trend.map(d => d.legacy)) * 0.9;
-  const maxVal = Math.max(...stats.trend.map(d => d.optimized)) * 1.05;
-
+  
   return (
     <>
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden relative z-10">
@@ -190,7 +194,7 @@ export default function TaxCalculator({
         {/* --- GRAPH AREA --- */}
         <div className="p-8 bg-white relative">
             
-            {/* THE "STRATEGY BONUS" CARD (UPDATED) */}
+            {/* THE "STRATEGY BONUS" CARD */}
             <div className="bg-slate-900 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
                {/* Shine Effect */}
                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 blur-3xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/2" />
@@ -253,7 +257,7 @@ export default function TaxCalculator({
                     tickFormatter={(val) => `Year ${val}`}
                   />
                   <YAxis 
-                    domain={[minVal, 'auto']} // AUTO-ZOOM to show the gap!
+                    domain={[minVal, 'auto']} // AUTO-ZOOM
                     axisLine={false} 
                     tickLine={false} 
                     tick={{fill: '#94a3b8', fontSize: 10}} 
@@ -262,7 +266,7 @@ export default function TaxCalculator({
                   />
                   <Tooltip content={<CustomTooltip />} />
                   
-                  {/* 1. Legacy (Grey Dashed) */}
+                  {/* 1. Legacy (Grey Dashed) - Render First */}
                   <Area 
                     type="monotone" 
                     dataKey="legacy" 
@@ -273,7 +277,7 @@ export default function TaxCalculator({
                     activeDot={{ r: 4 }}
                   />
 
-                  {/* 2. Standard (Amber) */}
+                  {/* 2. Standard (Amber) - Render Second */}
                   <Area 
                     type="monotone" 
                     dataKey="standard" 
@@ -283,7 +287,7 @@ export default function TaxCalculator({
                     activeDot={{ r: 4 }}
                   />
 
-                  {/* 3. Optimized (Purple Filled) */}
+                  {/* 3. Optimized (Purple Filled) - Render Last (On Top) */}
                   <Area 
                     type="monotone" 
                     dataKey="optimized" 
