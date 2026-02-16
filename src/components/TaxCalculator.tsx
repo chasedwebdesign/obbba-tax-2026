@@ -2,51 +2,39 @@
 
 import { useState, useEffect } from 'react';
 import { Edit2, RefreshCw, Save } from 'lucide-react';
+import BuyButton from './BuyButton'; // <--- Import it here now!
 
-// Copying the math logic here for client-side interactivity
-// In a larger app, we'd share this function, but for speed, we duplicate the math.
+// ... (Keep the "calculate" function exactly as it was) ...
 const calculate = (base: number, tips: number, overtime: number, stateRate: number) => {
-  const standardDeduction = 14600;
+    // ... same math logic ...
+    const standardDeduction = 14600;
+    const dedTips = Math.min(tips, 25000);
+    const dedOvertime = Math.min(overtime, 12500);
+    const gross = base + tips + overtime;
+    const taxableObbba = Math.max(0, gross - standardDeduction - dedTips - dedOvertime);
+    const taxableLegacy = Math.max(0, gross - standardDeduction);
   
-  // OBBBA Deductions
-  const dedTips = Math.min(tips, 25000);
-  const dedOvertime = Math.min(overtime, 12500);
-
-  // Taxable Incomes
-  const gross = base + tips + overtime;
-  const taxableObbba = Math.max(0, gross - standardDeduction - dedTips - dedOvertime);
-  const taxableLegacy = Math.max(0, gross - standardDeduction);
-
-  // Federal Tax Func
-  const fed = (amt: number) => {
-    if (amt <= 11600) return amt * 0.10;
-    if (amt <= 47150) return 1160 + (amt - 11600) * 0.12;
-    if (amt <= 100525) return 5426 + (amt - 47150) * 0.22;
-    return 17168.5 + (amt - 100525) * 0.24;
-  };
-
-  const taxNew = fed(taxableObbba) + (taxableObbba * stateRate);
-  const taxOld = fed(taxableLegacy) + (taxableLegacy * stateRate);
-
-  return {
-    savings: taxOld - taxNew,
-    deductibleTips: dedTips,
-    deductibleOvertime: dedOvertime
-  };
+    const fed = (amt: number) => {
+      if (amt <= 11600) return amt * 0.10;
+      if (amt <= 47150) return 1160 + (amt - 11600) * 0.12;
+      if (amt <= 100525) return 5426 + (amt - 47150) * 0.22;
+      return 17168.5 + (amt - 100525) * 0.24;
+    };
+  
+    const taxNew = fed(taxableObbba) + (taxableObbba * stateRate);
+    const taxOld = fed(taxableLegacy) + (taxableLegacy * stateRate);
+  
+    return {
+      savings: taxOld - taxNew,
+      deductibleTips: dedTips,
+      deductibleOvertime: dedOvertime
+    };
 };
 
 export default function TaxCalculator({ 
-  initialBase, 
-  initialTips, 
-  initialOvertime, 
-  stateName,
-  stateRate 
+  initialBase, initialTips, initialOvertime, stateName, stateRate 
 }: { 
-  initialBase: number, 
-  initialTips: number, 
-  initialOvertime: number, 
-  stateName: string,
-  stateRate: number
+  initialBase: number, initialTips: number, initialOvertime: number, stateName: string, stateRate: number
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [base, setBase] = useState(initialBase);
@@ -55,16 +43,17 @@ export default function TaxCalculator({
   
   const [stats, setStats] = useState(calculate(base, tips, overtime, stateRate));
 
-  // Recalculate whenever inputs change
   useEffect(() => {
     setStats(calculate(base, tips, overtime, stateRate));
   }, [base, tips, overtime, stateRate]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transition-all duration-300">
-      <div className="p-6 md:p-8">
-        
-        {/* Header with Edit Button */}
+    <>
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transition-all duration-300">
+        <div className="p-6 md:p-8">
+          
+          {/* ... (Keep the Header, Edit Button, Big Number, Breakdown Grid, Disclaimer exactly as before) ... */}
+           {/* Header with Edit Button */}
         <div className="flex justify-between items-start mb-6">
           <div>
             <h3 className="text-lg font-bold text-slate-400 uppercase tracking-wider">Projected 2026 Savings</h3>
@@ -136,13 +125,22 @@ export default function TaxCalculator({
             <p className="text-2xl font-bold text-slate-900">${stats.deductibleOvertime.toLocaleString()}</p>
           </div>
         </div>
-      </div>
-      
-      {/* Disclaimer Strip */}
+        </div>
+
+         {/* Disclaimer Strip */}
       <div className="bg-slate-50 px-8 py-4 text-xs text-slate-400 border-t border-slate-100 flex justify-between items-center">
          <span>* Estimates based on {stateName} tax rates.</span>
          {isEditing && <span className="text-blue-600 font-bold flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Live Updating</span>}
       </div>
-    </div>
+      </div>
+
+      {/* --- HERE IS THE BUY BUTTON, CONNECTED TO LIVE DATA --- */}
+      <BuyButton 
+        base={base}
+        tips={tips}
+        overtime={overtime}
+        state={stateName}
+      />
+    </>
   );
 }
