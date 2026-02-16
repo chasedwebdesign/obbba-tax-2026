@@ -1,8 +1,7 @@
 import { STATES, JOBS, formatText, getJobProfile, STATE_TAX_RATES } from '@/lib/data';
 import { Metadata } from 'next';
 import Link from 'next/link';
-import BuyButton from '@/components/BuyButton';
-import TaxCalculator from '@/components/TaxCalculator';
+import TaxCalculator from '@/components/TaxCalculator'; // <--- ONLY this component remains
 
 // 1. GENERATE STATIC PARAMS
 export async function generateStaticParams() {
@@ -37,11 +36,8 @@ export default async function Page({ params }: Props) {
   const stateName = formatText(resolvedParams.state);
   const jobName = formatText(resolvedParams.job);
 
-  // --- STEP A: GET REAL DATA ---
-  // Pull the specific profile for this job (Income/Tips/Overtime)
+  // Get Data
   const profile = getJobProfile(resolvedParams.job);
-  
-  // Pull the specific tax rate for this state (default to 5% if missing)
   const stateRate = STATE_TAX_RATES[resolvedParams.state] !== undefined 
     ? STATE_TAX_RATES[resolvedParams.state] 
     : 0.05;
@@ -50,7 +46,7 @@ export default async function Page({ params }: Props) {
     <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
       <div className="max-w-3xl mx-auto">
         
-        {/* Breadcrumb Navigation */}
+        {/* Breadcrumb */}
         <div className="text-sm text-slate-400 mb-6 font-medium">
           <Link href="/" className="hover:text-emerald-500 transition">Home</Link> 
           <span className="mx-2">/</span> 
@@ -59,7 +55,7 @@ export default async function Page({ params }: Props) {
           {jobName}
         </div>
 
-        {/* Dynamic Header */}
+        {/* Header */}
         <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 leading-tight">
           The 2026 Tax Calculator for <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-blue-500">{jobName}s</span> in {stateName}
         </h1>
@@ -68,8 +64,7 @@ export default async function Page({ params }: Props) {
           If you work as a <strong>{jobName}</strong> in <strong>{stateName}</strong>, the new 2026 "No Tax on Tips" and "No Tax on Overtime" laws (OBBBA) significantly change your effective tax rate.
         </p>
 
-        {/* DYNAMIC SCENARIO EXPLANATION */}
-        {/* This proves to the user we know who they are */}
+        {/* Scenario Explanation */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 text-sm text-blue-800 shadow-sm">
            <div className="flex items-start gap-3">
              <div className="mt-1 min-w-[4px] min-h-[4px] rounded-full bg-blue-500" />
@@ -82,8 +77,7 @@ export default async function Page({ params }: Props) {
            </div>
         </div>
 
-        {/* --- THE INTERACTIVE CALCULATOR --- */}
-        {/* We pass the data into the client component so they can edit it */}
+        {/* Interactive Calculator (Buy Button is INSIDE here now) */}
         <TaxCalculator 
           initialBase={profile.base}
           initialTips={profile.tips}
@@ -92,8 +86,7 @@ export default async function Page({ params }: Props) {
           stateRate={stateRate}
         />
 
-        {/* --- THE MONEY BUTTON --- */}
-        <BuyButton />
+        {/* NO <BuyButton /> HERE - It was causing the crash! */}
 
       </div>
     </main>
