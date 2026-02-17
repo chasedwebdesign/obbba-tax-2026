@@ -1,10 +1,7 @@
-// scripts/index-pages.js
 const { google } = require('googleapis');
-const path = require('path');
 
 // --- CONFIGURATION ---
-const DOMAIN = 'https://obbba-tax-2026.vercel.app'; // <--- Your Vercel URL
-const KEY_PATH = path.join(__dirname, '..', 'service_account.json');
+const DOMAIN = 'https://obbba-tax-2026.vercel.app'; 
 
 // --- DATA LISTS ---
 const STATES = [
@@ -32,23 +29,37 @@ const JOBS = [
   "amazon-flex-driver", "freelancer"
 ];
 
-// --- AUTHENTICATION (The New Method) ---
+// --- AUTHENTICATION (Cloud Compatible) ---
+// We try to read the JSON from the Environment Variable first.
+let credentials;
+try {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  } else {
+    // Fallback for local testing if you still have the file
+    credentials = require('../service_account.json');
+  }
+} catch (error) {
+  console.error("❌ CRITICAL ERROR: Could not find Google Credentials.");
+  console.error("Make sure GOOGLE_SERVICE_ACCOUNT_JSON is set in GitHub Secrets.");
+  process.exit(1);
+}
+
 const auth = new google.auth.GoogleAuth({
-  keyFile: KEY_PATH, // <--- This forces it to read the file directly
+  credentials,
   scopes: ['https://www.googleapis.com/auth/indexing'],
 });
 
-// --- EXECUTION ---
 async function main() {
   console.log('🚀 Authenticating with Google...');
   
-  // Create the client using the file path
   const client = await auth.getClient();
 
   // 1. Generate URLs
   let urls = [];
   STATES.forEach(state => {
     JOBS.forEach(job => {
+      // Create the URL (e.g., /calculator/nevada/bartender)
       urls.push(`${DOMAIN}/calculator/${state}/${job}`);
     });
   });
@@ -56,12 +67,16 @@ async function main() {
   console.log(`📋 Generated ${urls.length} URLs to index.`);
 
   // 2. Submit in Batches
+  // We use a simple loop to avoid hitting rate limits
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
     await submitUrl(client, url);
-    // Google Indexing API limit is strictly enforced. 
-    // We sleep 600ms to be safe.
-    await new Promise(resolve => setTimeout(resolve, 600)); 
+    
+    // Sleep for 1 second every 20 requests to be safe
+    if (i % 20 === 0 && i > 0) {
+       console.log('zzz Sleeping for rate limits...');
+       await new Promise(r => setTimeout(r, 1000));
+    }
   }
   
   console.log('✅ Done!');
@@ -77,7 +92,10 @@ async function submitUrl(authClient, url) {
         type: 'URL_UPDATED'
       }
     });
-    console.log(`[${result.status}] Indexed: ${url}`);
+    // Only log success (saves clutter in logs)
+    if (result.status === 200) {
+      console.log(`Indexed: ${url}`);
+    }
   } catch (error) {
     console.error(`❌ Error indexing ${url}:`, error.message);
   }

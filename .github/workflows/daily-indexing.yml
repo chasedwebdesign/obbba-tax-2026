@@ -1,0 +1,30 @@
+name: Daily Indexing Bot
+
+on:
+  schedule:
+    # Runs at 6:00 AM UTC every day
+    - cron: '0 6 * * *'
+  # Allows manual testing
+  workflow_dispatch:
+
+jobs:
+  run-indexing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Indexing Script
+        # We run the file directly with node since it's a simple JS file now
+        run: node scripts/index-pages.js
+        env:
+          # This injects the JSON key you just pasted into GitHub Secrets
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
